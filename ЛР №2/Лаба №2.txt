@@ -1,0 +1,178 @@
+.model small
+.stack 100h
+.data
+    entStr db "Enter string: ", 10, 13, '$' 
+    delStr db "Enter word to delete from string: ", 10, 13, '$'
+    WAB db "What a fucking bitch!", 10, 13, '$'
+    
+    ent db 13,10,'$'        
+    
+    str db 200 dup(?)
+    del db 200 dup(?)
+    
+.code
+
+cin macro s                    ;enter any string
+    
+    lea dx, s              
+    mov ah, 0Ah
+    int 21h
+    
+endm
+
+cout macro s                   ;show string
+    
+    lea dx, s           
+    mov ah, 09h                 
+    int 21h
+    
+endm    
+
+endl macro                     ;go on the next line
+    
+    cout ent
+    
+endm    
+
+enterString macro              ;enter string for processing
+    
+    mov str[0], 198
+    cin str
+    
+    xor bx, bx
+    mov bl, str[1]
+    add bl, 2
+    mov str[bx], '$'
+    
+endm
+
+enterWord macro                ;enter word to delete
+    
+    mov del[0], 198
+    cin del
+    
+    xor bx, bx			 ;make bx = 0, because we need to use bl
+    mov bl, del[1]
+    add bl, 2
+    mov del[bx], '$'
+    
+endm    
+
+start:
+    mov ax,@data             
+    mov ds,ax
+      
+    cout entStr                  ;message for entering string
+    enterString                  ;enter string to delete from
+    
+wordInput:
+    endl
+    cout delStr                  ;message for deleting word
+
+    enterWord
+    
+    xor si, si
+    mov si, 1
+    
+checkSpace:
+        
+    cmp del[si], ' '      ;check this symbol for space
+    je error              ;if it's space, will show message about it + enter again
+    cmp del[si], '$'      ;check, if it's end of the line
+    je letsDelete         ;if it's end of the line, process deleting
+    
+    inc si
+    jmp checkSpace
+
+error:
+    
+    endl                  ;go on the next line
+    cout WAB              ;say to user, that he is a bitch
+    jmp wordInput         ;go back for entering new word to delete
+    
+letsDelete:    
+    
+    xor si, si            ;make si = 0 for next processing
+    mov si, 1             ;make si = 2 (it's first symbol of string)
+
+strSpace:
+
+    cmp str[si + 1], '$'  ;check, if it's end of the line
+    je exitProgramm       ;if it is so, it means, we processed our string
+    cmp str[si + 1], ' '  ;check, if it's space
+    jne saveRegi          ;if it's not space, we found word; let's check it
+    inc si                ;si++
+    jmp strSpace          ;loop
+    
+saveRegi:
+
+    xor bx, bx
+    mov bx, 2             
+    
+    push si               ;put in stack index before word
+    
+    add si, 1
+    push si               ;put in stack index of beginning of the word
+    
+    sub si, 1             ;make si equal to index before word
+    
+compareWord:
+    
+    cmp del[bx], '$'      ;if we at the end of the word to delete
+    je nextCompare        ;check the word in the string
+    mov dl, str[si + 1]   ;put symbol from string to dl 
+    mov dh, del[bx]       ;put symbol from word to dh
+    cmp dl, dh            ;compare them
+    jne thisIsNotOurWord  
+    inc si                ;si++
+    inc bx                ;bx++
+    jmp compareWord
+
+thisIsNotOurWord:
+    
+    cmp str[si + 1], '$'  ;if it's end of the word
+    je exitProgramm       ;exit programm
+    cmp str[si + 1], ' '  ;if it's space
+    je strSpace           ;let's go to find new word
+    inc si                ;si++
+    jmp thisIsNotOurWord  
+    
+nextCompare:
+    
+    cmp str[si + 1], ' '  ;if it's space
+    je getRegi            ;it's our word
+    cmp str[si + 1], '$'  ;if it's end of string
+    je getRegi            ;it's our word
+    
+    jmp thisIsNotOurWord  ;else, this is not our word
+    
+getRegi:
+
+    pop si                ;get index of beginning of the word in string
+    add bx, si            ;bx = si
+    sub bx, 2             ;bx -= 2 => we have end of the word in string 
+                
+deleteWord:
+
+    cmp str[bx], '$'      ;if it's end of the line
+    je makeEnd            ;make new end of string
+    mov dl, str[bx]       ;get symbol from the end of the word
+    mov str[si], dl       ;put this symbol to the beginning of the string
+    inc si                ;si++
+    inc bx                ;bx++
+    jmp deleteWord        ;loop
+    
+makeEnd:
+    
+    mov str[si], '$'      ;put '$' in the end of the line
+    pop si                ;get symbol before word beginning  
+    cmp str[si],'$'       ;if next symbol is not '$'
+    jne strSpace          ;continue programm
+    jmp exitProgramm      ;else exit programm 
+
+exitProgramm:
+
+    endl                  ;\n
+    cout str[2]           ;show processed string
+    
+end start

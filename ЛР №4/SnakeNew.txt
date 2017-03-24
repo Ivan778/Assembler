@@ -1,0 +1,768 @@
+.model small
+.data
+
+snake	dw 0000h                       ;our snake's coordinates
+		dw 0001h
+		dw 0002h
+		dw 0003h
+		dw 0004h
+		dw 7CCh dup('?')
+
+points dw 0
+tailC dw 0000h
+symbol db 219		
+speed dw 3
+
+pointsLogo db 20 dup('$')
+pL db "Points: ", '$'
+result db 7 dup('$')
+
+.stack 100h
+.code
+
+;----------------------------compute new coordinates-------------------------------;
+
+dollarResult PROC                ;fill result string with '$' 
+    
+    pusha
+    
+    xor si, si
+    xor cx, cx
+    mov cx, 7h
+    
+repeatOneMoreTime:
+    
+    cmp si, cx
+    je bye
+    mov result[si], '$'
+    inc si
+    jmp repeatOneMoreTime    
+
+bye:
+     
+    popa 
+    ret
+    
+ENDP
+
+showPoints PROC
+    
+    pusha
+    
+    call dollarResult
+    
+    xor ax, ax
+    mov ax, points
+    xor bx, bx
+    mov bx, 10
+    
+    xor cx, cx
+    
+getDigits:
+    
+    inc cx
+    
+    xor dx, dx
+    div bx                        ;the last digit is in DX
+    
+    shl ax, 4                     ;clear waste in AH
+    shr ax, 4                     ;clear waste in AH
+    
+    push dx                       ;save this digit
+    
+    cmp ax, 0                     ;if ax != 0h
+    jne getDigits                 ;let's divide it one more time
+    
+    xor si, si                    ;si = 0 
+    
+createResultString:
+    
+    cmp cx, si                    ;if cx == si
+    je endOfCon                   ;we need to end our loop 
+    
+    xor bx, bx                    ;bx = 0
+    pop bx                        ;bx = digit of result
+    
+    add bx, '0'                   ;else it's a letter => convert it to ASCII
+    mov result[si], bl            ;put it to string
+    inc si                        ;si++
+    
+    jmp createResultString    
+    
+endOfCon:       
+    
+    popa
+    
+    
+    pusha
+    
+    xor si, si
+    
+loop3:
+    
+    mov al, pL[si]
+    cmp al, '$'
+    je nextStep
+    
+    mov pointsLogo[si], al
+    inc si 
+    jmp loop3
+    
+nextStep:
+    
+    ;inc si
+    xor di, di
+    
+loop4:
+
+    mov al, result[di]
+    cmp al, '$'
+    je showFuckingEnd
+        
+    mov pointsLogo[si], al
+    inc si
+    inc di
+    jmp loop4
+
+showFuckingEnd:
+    
+    popa
+    
+    pusha
+    
+    mov dh, 24
+    mov dl, 68
+    
+    mov ah, 02
+    int 10h
+    
+    lea dx, pointsLogo
+    mov ah, 09h
+    int 21h
+    
+    popa
+    
+    ret    
+    
+showPoints ENDP    
+
+rewriteCoordinates PROC
+    
+    pusha
+    
+    xor di, di
+    mov cx, si
+    add cx, 2
+    mov si, 2
+    
+loop1:
+    
+    cmp cx, si
+    je endLoop1
+    
+    mov ax, snake[si]
+    mov snake[di], ax
+    
+    add si, 2
+    add di, 2
+    
+    jmp loop1 
+    
+endLoop1:    
+    
+    popa
+    ret
+    
+rewriteCoordinates ENDP    
+
+;----------------------------check key press--------------------------------------;
+
+checkKeys PROC
+    
+    mov ah, 01h        ;function name
+    int 16h            ;call function ==> check if key pressed
+	je end             ;if there is no key pressed, go to end of the PROC
+	
+	xor ah, ah         ;
+	int 16h            ;clean buffer 
+	
+down:
+    
+    cmp al, 73h        ;if S wasn't pressed
+    jne up             ;it's maybe W
+    
+    cmp cx, 0ff00h     ;compare, if the previous key is S
+    je end             ;if it's so, end PROC
+    
+    mov cx, 0100h      ;mov to CX new direction
+    jmp end            ;end PROC
+    
+up:
+
+    cmp al, 77h        ;if W wasn't pressed
+    jne right          ;it's maybe D
+    
+    cmp cx, 0100h      ;compare, if the previous key is W
+    je end             ;if it's so, end PROC
+    
+    mov cx, 0ff00h     ;mov to CX new direction
+    jmp end
+    
+right:
+
+    cmp al, 64h        ;if D wasn't pressed
+    jne left           ;it's maybe A
+    
+    cmp cx, 0ffffh     ;compare, if the previous key is D
+    je end             ;if it's so, end PROC
+    
+    mov cx, 0001h      ;mov to CX new direction
+    jmp end
+    
+left:
+
+    cmp al, 61h        ;if A wasn't pressed
+    jne end            ;it's not our key, so, end PROC
+    
+    cmp cx, 0001h      ;compare, if the previous key is A
+    je end             ;if it's so, end PROC
+    
+    mov cx, 0ffffh     ;mov to CX new direction
+    jmp end        	
+	
+end:
+
+    cmp al, 68h
+    jne end1   
+    mov speed, 2
+    
+end1:
+
+    cmp al, 06ch
+    jne end2   
+    mov speed, 4
+    
+end2:
+
+    cmp al, 06dh
+    jne end3   
+    mov speed, 3
+    
+end3:            	     
+    
+    cmp al, 1bh
+    je gameOver
+    
+    ret
+        
+checkKeys ENDP    
+
+;----------------------------delay for DOS----------------------------------------;
+
+delay PROC
+    
+    pusha
+    push cx 
+    
+    mov ah, 0
+    int 1Ah
+     
+    add dx, speed
+    mov bx, dx
+repeat:   
+    int 1Ah
+    cmp dx, bx
+    jl repeat
+    
+    pop cx
+    popa
+    ret
+    
+delay ENDP
+
+;------------------------------------------------------------------------------------;
+
+addFood PROC
+    
+    pusha
+
+restart:
+    
+    mov ah, 2Ch ;ch=hour, cl-min, dh-sec, dl msec.
+    int 21h
+big_y: 
+    shr dh, 1
+    cmp dh, 22
+    jg big_y
+big_x:
+    shr dl, 1
+    cmp dl, 80
+    jg big_x
+
+    mov ah, 02h
+    int 10h 
+    
+    mov ah, 08
+    int 10h
+    
+    cmp al, symbol
+    je restart
+    
+    cmp al, 254
+    je restart
+    
+    mov ah, 02h        ;function number
+    mov dl, 24h        ;symbol to show ==> put symbol to cursor position
+    int 21h            ;call function 
+    
+    popa
+    ret
+
+addFood ENDP
+
+;---------------------draw horizontal line--------------------------------;
+
+drawHLines PROC
+    
+    mov ah, 02
+    int 10h
+    
+	mov ah, 0Ah        ;function for showing symbol
+	mov al, 254        ;symbol to show
+	int 10h            ;show
+	
+	ret    
+    
+drawHLines ENDP
+
+;---------------------draw vertical line-----------------------------------;
+
+drawVLines PROC
+
+loopV:
+    
+    cmp si, 0
+    je endV
+    
+    mov ah, 02
+    int 10h
+    
+	mov ah, 0Ah        ;function for showing symbol
+	mov al, 254        ;symbol to show
+	int 10h            ;show
+	
+	add dh, 1
+	sub si, 1
+	
+    jmp loopV
+    
+endV:    	
+	
+	ret    
+    
+drawVLines ENDP
+
+start:
+    
+    mov ax, @data
+    mov ds, ax
+    mov es, ax
+    
+    mov ah, 00h        ;
+    mov al, 03h        ;=>set up standart 16 color text mode
+    int 10h            ;
+    
+;---------------------------let's draw map--------------------------------;
+    
+    ;-------------------;
+    
+    mov dl, 4
+    mov dh, 4
+    
+    mov cx, 4
+    call drawHLines
+    
+    ;----------------
+    
+    mov dl, 11
+    mov dh, 4
+    
+    mov cx, 27
+    call drawHLines
+    
+    ;----------------
+    
+    mov dl, 42
+    mov dh, 4
+    
+    mov cx, 27
+    call drawHLines
+    
+    ;----------------
+    
+    mov dl, 72
+    mov dh, 4
+    
+    mov cx, 4
+    call drawHLines
+    
+    ;-------------------;
+    
+    mov dl, 4
+    mov dh, 18
+    
+    mov cx, 4
+    call drawHLines
+    
+    ;----------------
+    
+    mov dl, 11
+    mov dh, 18
+    
+    mov cx, 27
+    call drawHLines
+    
+    ;----------------
+    
+    mov dl, 42
+    mov dh, 18
+    
+    mov cx, 27
+    call drawHLines
+    
+    ;----------------
+    
+    mov dl, 72
+    mov dh, 18
+    
+    mov cx, 4
+    call drawHLines
+    
+    ;----------------
+    
+    mov dl, 2
+    mov dh, 8
+    
+    mov cx, 2
+    call drawHLines
+    
+    ;----------------
+    
+    mov dl, 2
+    mov dh, 14
+    
+    mov cx, 2
+    call drawHLines
+    
+    ;----------------
+    
+    mov dl, 76
+    mov dh, 8
+    
+    mov cx, 2
+    call drawHLines
+    
+    ;----------------
+    
+    mov dl, 76
+    mov dh, 14
+    
+    mov cx, 2
+    call drawHLines
+    
+    ;---------------------------------;
+    
+    mov dl, 4
+    mov dh, 5
+    mov cx, 1
+    
+    mov si, 13
+    call drawVLines
+    
+    ;----------------
+    
+    mov dl, 18
+    mov dh, 5
+    mov cx, 1
+    
+    mov si, 5
+    call drawVLines
+    
+    ;----------------
+    
+    mov dl, 18
+    mov dh, 13
+    mov cx, 1
+    
+    mov si, 5
+    call drawVLines
+    
+    ;----------------
+    
+    mov dl, 28
+    mov dh, 2
+    mov cx, 1
+    
+    mov si, 2
+    call drawVLines
+    
+    ;----------------
+    
+    mov dl, 28
+    mov dh, 8
+    mov cx, 1
+    
+    mov si, 7
+    call drawVLines
+    
+    ;----------------
+    
+    mov dl, 28
+    mov dh, 19
+    mov cx, 1
+    
+    mov si, 2
+    call drawVLines
+    
+    ;----------------
+    
+    mov dl, 51
+    mov dh, 2
+    mov cx, 1
+    
+    mov si, 2
+    call drawVLines
+    
+    ;----------------
+    
+    mov dl, 51
+    mov dh, 8
+    mov cx, 1
+    
+    mov si, 7
+    call drawVLines
+    
+    ;----------------
+    
+    mov dl, 51
+    mov dh, 19
+    mov cx, 1
+    
+    mov si, 2
+    call drawVLines
+    
+    ;----------------
+    
+    mov dl, 61
+    mov dh, 5
+    mov cx, 1
+    
+    mov si, 5
+    call drawVLines
+    
+    ;----------------
+    
+    mov dl, 61
+    mov dh, 13
+    mov cx, 1
+    
+    mov si, 5
+    call drawVLines
+    
+    ;----------------
+    
+    mov dl, 75
+    mov dh, 5
+    mov cx, 1
+    
+    mov si, 13
+    call drawVLines
+    
+    ;----------------   
+    
+    call showPoints
+    
+;---------------------------show our snake--------------------------------;    
+    
+    mov dh, 0          ;Y
+    mov dl, 0          ;X
+    
+    mov ah, 02
+    int 10h
+    
+    mov cx, 5          ;show 5 symbols
+	mov ah, 0Ah        ;function for showing symbol
+	mov al, symbol     ;symbol to show
+	int 10h            ;show
+	
+	xor si, si
+	xor di, di
+	mov si, 8          ;head of our snake
+	mov cx, 0001h      ;we will use it o manipulate head
+    
+    call addFood    	   	
+    
+startGame:
+   
+    call delay
+    call checkKeys
+   
+    mov ax, snake[0]
+    mov tailC, ax
+    
+;----------------------------check for food------------------------------;
+
+    pusha
+    
+    mov ax, snake[si]
+    add ax, cx
+    
+    mov dx, ax
+    mov ah, 02h
+    int 10h
+    
+    xor al, al
+    mov ah, 08
+    int 10h
+    
+    cmp al, 24h
+    jne continueGame
+    
+    popa
+    
+    mov ax, snake[si]
+    add ax, cx
+    add si, 2
+    mov snake[si], ax
+    
+    mov dx, ax          ;
+    mov ah, 02h         ;
+    int 10h             ;put cursor to new coordinate
+   
+    mov ah, 02h         ;
+    mov dl, symbol      ;
+    int 21h             ;show new head
+    
+    jmp eatFood
+
+;------------------------------------------------------------------------;    
+
+continueGame:
+    
+    popa
+    
+    call rewriteCoordinates
+   
+    mov ax, snake[si]
+    add ax, cx
+    
+;-----------------------------check for walls----------------------------;    
+
+checkUp:
+    
+    cmp cx, 0ff00h     
+    jne checkDown
+    
+    cmp ah, 0ffh
+    jne checkDown
+    mov ah, 22
+    
+checkDown:
+
+    cmp cx, 0100h   
+    jne checkLeft
+    
+    cmp ah, 24
+    jne checkLeft
+    mov ah, 0
+    
+checkLeft:
+    
+    cmp cx, 0ffffh    
+    jne checkRight
+    
+    cmp al, 0ffh
+    jne checkRight
+    mov al, 4fh
+    add ah, 1h
+    
+checkRight:
+    
+    cmp cx, 0001h     
+    jne checkCollisionWithItself    
+    
+    cmp al, 50h        
+    jne checkCollisionWithItself    
+    xor al, al
+    
+checkCollisionWithItself:
+    
+    pusha
+    
+    mov dx, ax
+    mov ah, 02h
+    int 10h
+    
+    xor al, al
+    mov ah, 08
+    int 10h
+    
+    cmp al, symbol
+    je gameOver
+    
+    popa
+    
+checkCollisionWithWalls:
+
+    pusha
+    
+    mov dx, ax
+    mov ah, 02h
+    int 10h
+    
+    xor al, al
+    mov ah, 08
+    int 10h
+    
+    cmp al, 254
+    je gameOver
+    
+    popa                             
+
+;------------------------------------------------------------------------; 
+    
+    mov snake[si], ax
+    
+    mov dx, ax          ;
+    mov ah, 02h         ;
+    int 10h             ;put cursor to new coordinate
+   
+    mov ah, 02h         ;
+    mov dl, symbol      ;
+    int 21h             ;show new head
+   
+;-------------------------------------------------------------------------;
+
+    mov dx, tailC       ;
+    mov ah, 02h         ;
+    int 10h             ;put cursor to new coordinate
+       
+    mov ah, 02h         ;
+    mov dl, 32          ;
+    int 21h             ;delete tail end
+    
+    jmp startGame
+
+eatFood:           
+   
+   add points, 3  
+   call showPoints
+   call addFood
+   jmp startGame
+   
+gameOver:
+
+   mov ax, 4C00h
+   int 21h            
+
+end start

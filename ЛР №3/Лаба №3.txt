@@ -1,0 +1,397 @@
+.model small
+.stack 100h
+.data
+    
+entFN db "Enter fisrt number: ", 10, 13, '$'
+entSN db "Enter second number: ", 10, 13, '$'
+
+resAND db "AND", 10, 13, '$'
+resXOR db "XOR", 10, 13, '$'
+resOR db "OR", 10, 13, '$'
+resNOTF db "NOT (first number)", 10, 13, '$'
+resNOTS db "NOT (second number)", 10, 13, '$'
+
+resultMessage db "Results of bit operations: ", 10, 13, '$' 
+    
+ent db 13, 10, '$'
+
+firstN db 7 dup(?)               ;buffer for first number
+secondN db 7 dup(?)              ;buffer for second number
+
+result db 7 dup('$')
+        
+.code
+
+dollarResult PROC                ;fill result string with '$'
+    
+    xor si, si
+    xor cx, cx
+    mov cx, 7h
+    
+repeatOneMoreTime:
+    
+    cmp si, cx
+    je bye
+    mov result[si], '$'
+    inc si
+    jmp repeatOneMoreTime    
+
+bye:
+    
+    ret
+    
+ENDP    
+
+convertSymbol PROC
+    
+    cmp bl, '9'                   ;if it's greater than '9'
+    ja itIsSymbol                ;it's 'a'-'f' or 'A'-'F'
+    sub bl, '0'                   ;else it's a number, so number = symbol - '0'
+    
+    jmp processed                 ;finished processing
+    
+itIsSymbol:
+
+    and bl, 11011111b             ;if it's 'a', convert it to 'A'
+    sub bl, 'A' - 10              ;number = symbol - ('A' - 10)
+    
+processed:
+
+    ret        
+    
+ENDP    
+    
+cout macro s                      ;show any string
+    
+    lea dx, s
+    mov ah, 09h
+    int 21h
+    
+endm        
+
+endl macro                        ;go on the next line
+    
+    cout ent
+    
+endm       
+
+cin macro s                       ;enter number
+                                  ;put in first cell full size of string
+    mov s[0], 5
+    
+    lea dx, s              
+    mov ah, 0Ah
+    int 21h
+    
+    xor bx, bx                    ;bx = 0, because we need to use bl
+    mov bl, s[1]                  ;bl = real size of string
+    add bl, 2                     ;bl += 2
+    mov s[bx], '$'                ;put in the last cell '$'
+    
+endm    
+
+convertNumberToString PROC
+    
+    xor ax, ax                    ;AX = 0
+    mov ax, bx                    ;AX contains result of operation
+    xor bx, bx                    ;BX = 0
+    mov bx, 10h                   ;BX = 10h (we will divide on 10h)
+    xor cx, cx                    ;cx will contain amount of digits in stack
+
+getDigits:
+    
+    inc cx
+    
+    xor dx, dx
+    div bx                        ;the last digit is in DX
+    
+    shl ax, 4                     ;clear waste in AH
+    shr ax, 4                     ;clear waste in AH
+    
+    push dx                       ;save this digit
+    
+    cmp ax, 0h                    ;if ax != 0h
+    jne getDigits                 ;let's divide it one more time
+    
+    xor si, si                    ;si = 0
+
+createResultString:
+    
+    cmp cx, si                    ;if cx == si
+    je endOfCon                   ;we need to end our loop 
+    
+    xor bx, bx                    ;bx = 0
+    pop bx                        ;bx = digit of result
+    
+    cmp bx, 9h                    ;compare BX and 9h
+    jna itsADigit                 ;if BX is lower, than 9, it's a digit
+    
+    add bx, 'A'-10                ;else it's a letter => convert it to ASCII
+    mov result[si], bl            ;put it to string
+    inc si                        ;si++
+    
+    jmp createResultString
+     
+itsADigit:
+    
+    add bx, '0'                   ;convert digit to ASCII
+    mov result[si], bl            ;put to string
+    inc si                        ;si++
+    
+    jmp createResultString        ;go back to convert one more digit
+
+endOfCon:
+    
+    ret
+    
+ENDP    
+
+start:
+    
+    mov ax,@data             
+    mov ds,ax
+    
+enterFN:                          ;entering first number
+
+    cout entFN                    ;message to enter number
+    cin firstN                    ;entering first number
+    
+    xor si, si                    ;si = 0
+    mov si, 1                     ;si = 1, because number starts with 3rd cell
+    
+    cmp firstN[2], '0'            ;if first symbol is 0, enter number again
+    je sorry1
+    
+checkNumber1:                     ;check, if it's greater, than 0 or it's the end of number
+    
+    inc si                        ;si++
+    cmp firstN[si], '$'           ;if it's the end of number
+    je onTheNextLine              ;let's enter second number
+    
+    cmp firstN[si], '0'           ;if it's greater, than '0'
+    jnl nextCompare1              ;go to next check 
+    
+nextCompare1:                     ;check, if it's a number
+    
+    cmp firstN[si], '9'           ;if it's not lower, than '9'
+    jng checkNumber1              ;go check, if it's a letter  
+
+startS1:                          ;check, if it's a letter
+
+    cmp firstN[si], 'a'           ;if it's greater, than 'a'
+    jnl finishS1                  ;go next check
+
+finishS1:                         ;last check
+
+    cmp firstN[si], 'f'           ;if it's not greater, than 'f'
+    jng checkNumber1              ;go check next cell
+
+sorry1:                           ;if number contains something, that not belong to 0..9, a..f
+    
+    endl                          ;go on the next line
+    jmp enterFN                   ;enter new number
+
+
+onTheNextLine:
+
+    endl                          ;go on the next line
+
+enterSN:                          ;entering the second number; everything is the same
+    
+    cout entSN                    
+    cin secondN                   
+    
+    xor si, si                    
+    mov si, 1                     
+    
+    cmp secondN[2], '0'
+    je sorry2
+    
+checkNumber2:
+    
+    inc si      
+    cmp secondN[si], '$'
+    je processing
+    
+    cmp secondN[si], '0'
+    jnl nextCompare2
+    
+    
+nextCompare2:
+    
+    cmp secondN[si], '9'    
+    jng checkNumber2                 
+
+startS2:
+
+    cmp secondN[si], 'a'
+    jnl finishS2
+
+finishS2:
+
+    cmp secondN[si], 'f'
+    jng checkNumber2
+
+sorry2:
+    
+    endl
+    jmp enterSN
+    
+;----------------------------------CONVERTING NUMBERS---------------------------------;
+
+processing:                       ;convert first number
+
+    xor si, si                    ;si = 0
+    add si, 1                     ;si = 1
+    
+    xor cx, cx
+    mov cl, firstN[si]
+    add cl, 2
+                
+    xor ax, ax                    ;ax = 0, it's buffer for our number
+    
+    xor dx, dx                    ;dx = 0, we will compare SI with DX (size of our number)
+    mov dx, cx                    ;dx = size of number
+    
+convertFirstN:
+
+    inc si                        ;si++
+    cmp si, dx                    ;if dx == si, we've converted number
+    je endLoop1
+    
+    
+    xor bx, bx
+    mov bl, firstN[si]
+    
+    call convertSymbol            ;convert symbol to digit
+    
+    shl ax, 4
+    or al, bl 
+    
+loopne convertFirstN
+endLoop1:
+
+    mov bp, ax                    ;now BP contains our first number 
+    
+    
+;-------------------------CONVERTING SECOND NUMBER-------------------------------------------;    
+    
+    xor si, si                    ;si = 0
+    add si, 1                     ;si = 1
+    
+    xor cx, cx
+    mov cl, secondN[si]
+    add cl, 2
+                
+    xor ax, ax                    ;ax = 0, it's buffer for our number
+    
+    xor dx, dx                    ;dx = 0, we will compare SI with DX (size of our number)
+    mov dx, cx                    ;dx = size of number
+    
+convertSecondN:
+
+    inc si                        ;si++
+    cmp si, dx                    ;if dx == si, we've converted number
+    je endLoop2
+    
+    
+    xor bx, bx
+    mov bl, secondN[si]
+    
+    call convertSymbol            ;convert symbol to digit
+    
+    shl ax, 4
+    or al, bl 
+    
+loopne convertSecondN
+endLoop2:  
+
+    mov di, ax                    ;now DI contains second number
+    
+;----------------------------PERFORMING LOGIC BIT OPERATIONS-----------------------------------;
+    
+    endl
+    endl
+    cout resultMessage
+
+;---------------------------------------AND-----------------------------------------;
+    
+    xor bx, bx                    ;BX = 0
+    mov bx, bp                    ;BX contains first number
+    
+    and bx, di                    ;perform firstN AND secondN
+    
+    call convertNumberToString
+    
+    endl
+    cout resAND
+    cout result
+    endl
+    
+    call dollarResult             
+    
+;---------------------------------------XOR-----------------------------------------;    
+    
+    xor bx, bx                    ;BX = 0
+    mov bx, bp                    ;BX contains first number
+    
+    xor bx, di                    ;perform firstN XOR secondN
+    
+    call convertNumberToString
+    
+    endl
+    cout resXOR
+    cout result
+    endl
+    
+    call dollarResult
+    
+;----------------------------------------OR-----------------------------------------;    
+    
+    xor bx, bx                    ;BX = 0
+    mov bx, bp                    ;BX contains first number
+    
+    or bx, di                     ;perform firstN OR secondN
+    
+    call convertNumberToString
+    
+    endl
+    cout resOR
+    cout result
+    endl
+    
+    call dollarResult
+    
+;------------------------------------NOT (firstN)-----------------------------------;
+
+    xor bx, bx                    ;BX = 0
+    mov bx, bp                    ;BX contains first number
+    
+    not bx                        ;perform firstN OR secondN
+    
+    call convertNumberToString
+    
+    endl
+    cout resNOTF
+    cout result
+    endl
+    
+    call dollarResult
+    
+;------------------------------------NOT (secondN)-----------------------------------;
+
+    xor bx, bx                    ;BX = 0
+    mov bx, di                    ;BX contains second number
+    
+    not bx                        ;perform firstN OR secondN
+    
+    call convertNumberToString
+    
+    endl
+    cout resNOTS
+    cout result
+    endl
+    
+    call dollarResult    
+    
+end start

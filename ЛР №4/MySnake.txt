@@ -1,0 +1,480 @@
+.model small
+
+.data
+
+symbol db 219
+
+points dw 0
+
+speed dw 3
+
+pointsLogo db 20 dup('$')
+pL db "Points: ", '$'
+
+result db 7 dup('$')
+
+snake	dw 0000h                       ;our snake's coordinates
+		dw 0001h
+		dw 0002h
+		dw 0003h
+		dw 0004h
+		dw 7CCh dup('?')
+
+.stack 100h
+
+.code
+
+dollarResult PROC                ;fill result string with '$' 
+    
+    pusha
+    
+    xor si, si
+    xor cx, cx
+    mov cx, 7h
+    
+repeatOneMoreTime:
+    
+    cmp si, cx
+    je bye
+    mov result[si], '$'
+    inc si
+    jmp repeatOneMoreTime    
+
+bye:
+     
+    popa 
+    ret
+    
+ENDP 
+
+showPoints PROC
+    
+    pusha
+    
+    call dollarResult
+    
+    xor ax, ax
+    mov ax, points
+    xor bx, bx
+    mov bx, 10
+    
+    xor cx, cx
+    
+getDigits:
+    
+    inc cx
+    
+    xor dx, dx
+    div bx                        ;the last digit is in DX
+    
+    shl ax, 4                     ;clear waste in AH
+    shr ax, 4                     ;clear waste in AH
+    
+    push dx                       ;save this digit
+    
+    cmp ax, 0                     ;if ax != 0h
+    jne getDigits                 ;let's divide it one more time
+    
+    xor si, si                    ;si = 0 
+    
+createResultString:
+    
+    cmp cx, si                    ;if cx == si
+    je endOfCon                   ;we need to end our loop 
+    
+    xor bx, bx                    ;bx = 0
+    pop bx                        ;bx = digit of result
+    
+    add bx, '0'                   ;else it's a letter => convert it to ASCII
+    mov result[si], bl            ;put it to string
+    inc si                        ;si++
+    
+    jmp createResultString    
+    
+endOfCon:       
+    
+    popa
+    
+    
+    pusha
+    
+    xor si, si
+    
+loop3:
+    
+    mov al, pL[si]
+    cmp al, '$'
+    je nextStep
+    
+    mov pointsLogo[si], al
+    inc si 
+    jmp loop3
+    
+nextStep:
+    
+    ;inc si
+    xor di, di
+    
+loop4:
+
+    mov al, result[di]
+    cmp al, '$'
+    je showFuckingEnd
+        
+    mov pointsLogo[si], al
+    inc si
+    inc di
+    jmp loop4
+
+showFuckingEnd:
+    
+    popa
+    
+    pusha
+    
+    mov dh, 24
+    mov dl, 68
+    
+    mov ah, 02
+    int 10h
+    
+    lea dx, pointsLogo
+    mov ah, 09h
+    int 21h
+    
+    popa
+    
+    ret    
+    
+showPoints ENDP    
+
+addFood PROC
+    
+    pusha
+
+restart:
+    
+    mov ah, 2Ch ;ch=hour, cl-min, dh-sec, dl msec.
+    int 21h
+big_y: 
+    shr dh, 1
+    cmp dh, 22
+    jg big_y
+big_x:
+    shr dl, 1
+    cmp dl, 80
+    jg big_x
+    mov ah, 02h
+    int 10h 
+    
+    mov ah, 08
+    int 10h
+    
+    cmp al, symbol
+    je restart
+    
+    mov ah, 02h        ;function number
+    mov dl, 24h         ;symbol to show ==> put symbol to cursor position
+    int 21h            ;call function 
+    
+    popa
+    ret
+
+addFood ENDP    
+
+delay PROC
+    
+    pusha
+    
+    push cx 
+    
+    mov ah, 0
+    int 1Ah
+     
+    add dx, speed
+    mov bx, dx
+repeat:   
+    int 1Ah
+    cmp dx, bx
+    jl repeat
+    pop cx
+    
+    popa
+    
+    ret
+delay ENDP
+
+pressKey PROC
+    
+    mov ah, 01h        ;function name
+    int 16h            ;call function ==> check if key pressed
+	je end             ;if there is no key pressed, go to end of the PROC
+	
+	xor ah, ah         ;
+	int 16h            ;clean buffer 
+	
+down:
+    
+    cmp al, 73h        ;if S wasn't pressed
+    jne up             ;it's maybe W
+    
+    cmp cx, 0ff00h     ;compare, if the previous key is S
+    je end             ;if it's so, end PROC
+    
+    mov cx, 0100h      ;mov to CX new direction
+    jmp end            ;end PROC
+    
+up:
+
+    cmp al, 77h        ;if W wasn't pressed
+    jne right          ;it's maybe D
+    
+    cmp cx, 0100h      ;compare, if the previous key is W
+    je end             ;if it's so, end PROC
+    
+    mov cx, 0ff00h     ;mov to CX new direction
+    jmp end
+    
+right:
+
+    cmp al, 64h        ;if D wasn't pressed
+    jne left           ;it's maybe A
+    
+    cmp cx, 0ffffh     ;compare, if the previous key is D
+    je end             ;if it's so, end PROC
+    
+    mov cx, 0001h      ;mov to CX new direction
+    jmp end
+    
+left:
+
+    cmp al, 61h        ;if A wasn't pressed
+    jne end            ;it's not our key, so, end PROC
+    
+    cmp cx, 0001h      ;compare, if the previous key is A
+    je end             ;if it's so, end PROC
+    
+    mov cx, 0ffffh     ;mov to CX new direction
+    jmp end        	
+	
+end:
+
+    cmp al, 68h
+    jne end1   
+    mov speed, 2
+    
+end1:
+
+    cmp al, 06ch
+    jne end2   
+    mov speed, 4
+    
+end2:
+
+    cmp al, 06dh
+    jne end3   
+    mov speed, 3
+    
+end3:            	     
+    
+    cmp al, 1bh
+    je gameOver
+    
+    ret
+    
+ENDP
+
+start:
+
+    mov ax, @data
+    mov ds, ax
+    mov es, ax
+    
+    mov ah, 00h        ;
+    mov al, 03h        ;=>set up standart 16 color text mode
+    int 10h            ;
+    
+startGame:
+
+    pusha
+    
+    mov dh, 24
+    mov dl, 68
+    
+    mov ah, 02
+    int 10h
+    
+    lea dx, pL
+    mov ah, 09h
+    int 21h
+    
+    popa  
+    
+    mov dh, 0
+    mov dl, 0
+    
+    mov ah, 02
+    int 10h
+    
+    mov cx, 5          ;show 5 symbols
+	mov ah, 0Ah        ;function for showing symbol
+	mov al, symbol     ;symbol to show
+	int 10h            ;show
+	
+	mov si, 8          ;head of our snake
+	xor di, di         ;tail of our snake
+	mov cx, 0001h      ;we will use it o manipulate head
+	
+	call addFood
+	
+move:
+    
+    call delay
+    call pressKey
+    
+    mov ax, snake[si]  ;move coordinate of the head to BX
+    add ax, cx         ;get new coordinate of the head
+    add si, 2          ;si += 2                   
+    
+;---------------------------block, where we check it's collisions with walls----------------------;
+    
+    cmp cx, 0001h      ;if it moves to the right, we gonna change position of the head
+    jne notModify1     ;else let's check next
+    
+    cmp al, 50h        ;if AL == 50h
+    jne notModify1     ;else not modify it
+    xor al, al         ;we are on the right border => column = 0        
+    
+notModify1:
+
+    cmp cx, 0ffffh     ;if it moves to the left, we gonna modify it
+    jne notModify2
+    
+    cmp al, 0ffh
+    jne notModify2
+    mov al, 4fh
+    add ah, 1h
+    
+notModify2:
+
+    cmp cx, 0ff00h     ;if it moves up, ge gonna modify it
+    jne notModify3
+    
+    cmp ah, 0ffh
+    jne notModify3
+    mov ah, 22
+    
+notModify3:
+
+    cmp cx, 0100h      ;if it moves down. we gonna modify it
+    jne continue
+    
+    cmp ah, 23
+    jne continue
+    mov ah, 0
+    
+    
+continue:
+
+;-----------------------------------checked collisions--------------------------------------------;            
+    
+    mov snake[si], ax  ;move new coordinate of the head to array
+    
+;----------------------------------check, if snake eats itself------------------------------------;
+    
+    pusha
+    
+    mov dx, ax
+    mov ah, 02h
+    int 10h
+    
+    xor al, al
+    mov ah, 08
+    int 10h
+    
+    cmp al, symbol
+    je gameOver
+    
+    popa 
+
+;------------------------------------------------------------------------------------------------;
+        
+        
+        
+;----------------------------------check, if snake eats food-------------------------------------;
+    
+    pusha
+    
+    mov dx, ax
+    mov ah, 02h
+    int 10h
+    
+    xor al, al
+    mov ah, 08
+    int 10h
+    
+    cmp al, 24h
+    jne continueGame
+    
+    xor bx, bx
+    mov bx, points
+    add bx, 1
+    mov points, bx
+    
+    popa
+    
+;----------------------------------add one cell to snake-----------------------------------------;    
+    
+    mov dx, ax         ;where to put ==> put cursor to new position of the head
+    mov ah, 02h        ;function number                  
+    int 10h            ;call function
+    
+    mov ah, 02h        ;function number
+    mov dl, symbol     ;symbol to show ==> put symbol to cursor position
+    int 21h            ;call function
+    
+    jmp addedCell
+    
+;------------------------------------------------------------------------------------------------;    
+
+continueGame:
+    
+    popa
+    
+;------------------------------------------------------------------------------------------------;    
+    
+    mov dx, ax         ;where to put ==> put cursor to new position of the head
+    mov ah, 02h        ;function number                  
+    int 10h            ;call function
+    
+    mov ah, 02h        ;function number
+    mov dl, symbol     ;symbol to show ==> put symbol to cursor position
+    int 21h            ;call function
+                  
+    ;------------------------------------------------------------------------------;
+                    
+    mov ah, 02h        ;function number
+    mov dx, snake[di]  ;where to put ==> put cursor to position of the tail
+    int 10h            ;call function
+    
+    mov ah, 02h        ;function number
+    mov dl, 32         ;symbol to show ==> put symbol to cursor position
+    int 21h            ;call function
+    
+    add di, 2
+    
+jmp move    
+    
+addedCell:
+    
+    call showPoints
+    call addFood
+    
+jmp move
+
+gameOver:
+
+    mov ax, 4C00h
+    int 21h
+
+end start

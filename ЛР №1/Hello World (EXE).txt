@@ -1,0 +1,22 @@
+.model small
+.stack 100h
+.code
+
+start:
+    mov ax, @data   ; помещаем адрес сегмента данных в ds               
+    mov ds, ax
+    mov dx, offset message   ; помещаем адрес строки в dx
+    mov ah, 9
+    int 21h
+    mov ax, 4c00h  ; DOS функция выхода из программы
+    int 21h   ; завершение программы
+    .data   ; сегмент данных
+    message db "Ivan", 0dh, 0ah, '$'
+end start
+
+;Общего назначения - AX, BX, CX, DX
+;Сегментные - CS (code), DS (data), SS (stack), ES (расширенные)
+;Адресные - SI (индекс источника), DI (индекс приёмника), BP (указатель базы), BX (база)
+;Указатель стека — SP
+;Указатель команд - IP
+;Регистр флагов - FLAGS
