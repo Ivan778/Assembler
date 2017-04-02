@@ -1,0 +1,202 @@
+.model small
+.stack 100h
+.data
+    
+filePath db 255 dup('$')
+cmd_size dw 0  
+
+success db "File opened!", '$'
+fail db "Error!", '$'
+ent db 13, 10, '$'
+content db "File has the following content:", '$' 
+
+fileID dw 7 dup(?)
+buf db 4 dup('$')
+
+speed dw 3
+
+.code 
+
+clean PROC
+    
+    pusha
+    xor si, si
+loop1:
+    cmp si, 4
+    je endProc
+    
+    mov buf[si], '$'
+    inc si     
+    
+    jmp loop1
+    
+endProc:    
+     
+    popa
+    ret
+     
+ENDP    
+
+cout macro s                      ;show any string
+    
+    lea dx, s
+    mov ah, 09h
+    int 21h
+    
+endm        
+
+endl macro                        ;go on the next line
+    
+    cout ent
+    
+endm
+
+;---------------------------------------------delay-------------------------------------------;
+
+delay PROC
+    
+    pusha
+    push cx 
+    
+    mov ah, 0
+    int 1Ah
+     
+    add dx, speed
+    mov bx, dx
+repeat:   
+    int 1Ah
+    cmp dx, bx
+    jl repeat
+    
+    pop cx
+    popa
+    ret
+    
+delay ENDP 
+
+;---------------------------------------------------------------------------------------------;
+
+checkKeys PROC  
+    
+    pusha
+    
+    mov ah, 01h        ;function name
+    int 16h            ;call function ==> check if key pressed
+	je end             ;if there is no key pressed, go to end of the PROC
+	
+	xor ah, ah         ;
+	int 16h            ;clean buffer 
+	
+endProgram:
+    
+    cmp al, 27         ;check, if ESC was pressed
+    je exit            ;if it's so, finish running program
+    
+pause:
+    
+    cmp al, 70h        ;check, if 'p' was pressed
+    jne speedL         ;if it's so, finish running program
+    
+    mov ah, 03h
+    int 10h
+    
+    push dx
+    
+    mov ah, 08h
+    int 21h
+    
+    mov ah, 02h
+    pop dx
+    int 10h
+    
+speedL:
+
+    cmp al, 06ch       ;check, if 'l' was pressed
+    jne speedF         ;if it's so, finish running program
+    mov speed, 3
+    
+speedF:
+
+    cmp al, 066h       ;check, if 'f' was pressed
+    jne end            ;if it's so, finish running program 
+    mov speed, 1          
+    
+end:      
+    
+    popa
+    
+    ret
+        
+checkKeys ENDP   
+
+start:
+    
+    mov ax,@data                 
+    mov es, ax
+    
+    xor ch, ch
+	mov cl, ds:[80h]		
+	push cx 		
+	mov si, 81h
+	mov di, offset filePath
+	rep movsb 
+	
+	mov ds, ax
+	pop cx
+	mov cmd_size, cx
+	
+	mov si, cmd_size
+	mov filePath[si], 0
+    
+    mov ax, 3d00h          ;function for opening files 
+    lea dx, filePath[1]    ;path to our file
+    int 21h                ;call function
+    
+    jnae fileNotOpened     ;if file is not opened, show message to user
+    
+    pusha
+    
+    cout success           ;if file is opened, show needed message
+    endl
+    
+    cout content           ;message, that says, that now will be showed content of the file
+    endl
+    endl
+    
+    popa
+    
+    mov fileID, ax         ;remember file identificator
+    
+readOneMoreTime:
+    call checkKeys
+    call delay
+
+    mov ah, 3fh 
+    mov bx, fileID
+    mov cx, 3
+    mov dx, offset buf
+    
+    int 21h
+     
+    pusha 
+    cout buf
+    popa
+    
+    call clean
+    
+    cmp ax, 3
+    jl exit 
+    
+    jmp readOneMoreTime    
+    
+fileNotOpened:
+
+    cout fail
+    endl
+    
+exit:
+
+    mov ax, 4c00h
+    int 21h        
+    
+end start
