@@ -2,130 +2,138 @@
 .stack 100h
 .data
     
-filePath db 255 dup('$')
-cmd_size dw 0  
+filePath db 255 dup('$') 							;буфер для хранения имени файла
+cmd_size dw 0  									    ;переменная для хранения количества символов командной строки
 
-success db "File opened!", '$'
-fail db "Error!", '$'
-ent db 13, 10, '$'
-content db "File has the following content:", '$' 
+success db "File opened!", '$' 						;сообщение об успешном открытии файла
+fail db "Error!", '$' 								;сообщение о не открытии файла
+ent db 13, 10, '$' 									;'\n' для перехода на следующую строку 
+content db "File has the following content:", '$'   ;сообщение, которое выводится перед выводом содержимого файла
 
-fileID dw 7 dup(?)
-buf db 4 dup('$')
+fileID dw 7 dup(?) 									;буфер для хранения идентификатора файла
+buf db 4 dup('$') 									;буфер для символов, которые считываются из файла
 
-speed dw 3
+speed dw 3 											;стандартная скорость вывода символов на экран
 
 .code 
 
+;------------------------------Процедура, которая заполняет buf долларами------------------------;
+
 clean PROC
     
-    pusha
-    xor si, si
+    pusha 						;запомнили все регистры
+    xor si, si 				    ;si = 0
+
 loop1:
-    cmp si, 4
-    je endProc
+    cmp si, 4 					;если si == 4,
+    je endProc 					;то строка заполнена долларами
     
-    mov buf[si], '$'
-    inc si     
+    mov buf[si], '$' 			;записываем доллар в очередную ячейку строки
+    inc si     					;si++
     
     jmp loop1
     
 endProc:    
+    popa 					    ;восстановили все регистры
+    ret 						;вернулись в main
      
-    popa
-    ret
-     
-ENDP    
+ENDP
 
-cout macro s                      ;show any string
-    
-    lea dx, s
-    mov ah, 09h
-    int 21h
-    
-endm        
+;---------------------------------Макрос для вывода строк---------------------------------------;
 
-endl macro                        ;go on the next line
+cout macro s                    
     
-    cout ent
+    lea dx, s 					;помещаем в dx адрес строки
+    mov ah, 09h  				;функция для вывода строки до доллара
+    int 21h 					;вызов функции
+    
+endm  
+
+;--------------------------Макрос для перехода на следующую строку------------------------------;      
+
+endl macro          
+    
+    cout ent 					;вызываем cout и отправляем туда '\n'
     
 endm
 
-;---------------------------------------------delay-------------------------------------------;
+;---------------------------------Процедура задержки--------------------------------------------;
 
 delay PROC
     
-    pusha
-    push cx 
+    pusha 					    ;запомнили все регистры
+    push cx 					;запомнили cx
     
-    mov ah, 0
-    int 1Ah
+    mov ah, 0					;функция для считывания значения счётчика времени
+    int 1Ah						;вызов функции (в dx будет значение счётчика)
      
-    add dx, speed
-    mov bx, dx
+    add dx, speed 				;увеличиваем счётчик на на нашу скорость
+    mov bx, dx 					;помещаем значение счётчика в bx
+
 repeat:   
-    int 1Ah
-    cmp dx, bx
-    jl repeat
+    int 1Ah 					;вызов функции для считывания значения (в dx будет значение счётчика)
+    cmp dx, bx 					;если dx < bx,
+    jl repeat 					;то ещё раз считываем счётчик времени
     
-    pop cx
-    popa
-    ret
+    pop cx 						;восстанавливаем cx
+    popa 						;восстанавливаем все регистры
+    ret 						;возвращаемся в main
     
 delay ENDP 
 
-;---------------------------------------------------------------------------------------------;
+;-------------------------Процедура проверки нажатых клавиш-----------------------------------;
 
 checkKeys PROC  
     
-    pusha
+    pusha			   ;запомнили все регистры
     
-    mov ah, 01h        ;function name
-    int 16h            ;call function ==> check if key pressed
-	je end             ;if there is no key pressed, go to end of the PROC
+    mov ah, 01h        ;имя функции, которая считывает буфер ввода
+    int 16h            ;вызов функции, которая проверяет, нажата ли какая-либо клавиша
+	je end             ;если клавиша не была нажата, выходим из процедуры
 	
-	xor ah, ah         ;
-	int 16h            ;clean buffer 
+	xor ah, ah         ;чистим ah
+	int 16h            ;чистим сам буфер, от символа, который считали; теперь символ в al
 	
 endProgram:
     
-    cmp al, 27         ;check, if ESC was pressed
-    je exit            ;if it's so, finish running program
+    cmp al, 27         ;если нажатая клавиша - не 'ESC', 
+    je exit            ;то прыгаем на метку завершения программы
     
 pause:
     
-    cmp al, 70h        ;check, if 'p' was pressed
-    jne speedL         ;if it's so, finish running program
+    cmp al, 70h        ;если нажатая клавиша - не 'p', 
+    jne speedL         ;то идём проверять следующую клавишу
     
-    mov ah, 03h
-    int 10h
+    mov ah, 03h		   ;функция для получения позиции курсора
+    int 10h 		   ;вызвали функцию
     
-    push dx
+    push dx 		   ;запомнили положение курсора на экране
     
-    mov ah, 08h
-    int 21h
+    mov ah, 08h		   ;функция ввода без эха
+    int 21h 		   ;вызов функции => программа стала на паузу (когда нажмём Enter, выполнение продолжиться)
     
-    mov ah, 02h
-    pop dx
-    int 10h
+    mov ah, 02h 	   ;функция для установки курсора
+    pop dx 			   ;куда установить курсор
+    int 10h 		   ;вызов функции
+
+    jmp end 		   ;прыгаем в конец процедуры
     
 speedL:
 
-    cmp al, 06ch       ;check, if 'l' was pressed
-    jne speedF         ;if it's so, finish running program
-    mov speed, 3
+    cmp al, 06ch       ;если нажатая клавиша - не 'l', 
+    jne speedF         ;то идём проверять следующую клавишу
+    mov speed, 3 	   ;в противном случае замедляем скорость
     
 speedF:
 
-    cmp al, 066h       ;check, if 'f' was pressed
-    jne end            ;if it's so, finish running program 
-    mov speed, 1          
+    cmp al, 066h       ;если нажатая клавиша - не 'f',
+    jne end            ;то идём в конец процедуры
+    mov speed, 1       ;в противном случаем увеличиваем скорость   
     
 end:      
     
-    popa
-    
-    ret
+    popa 			   ;восстановили все регистры
+    ret 			   ;вышли из процедуры
         
 checkKeys ENDP   
 
@@ -134,69 +142,78 @@ start:
     mov ax,@data                 
     mov es, ax
     
-    xor ch, ch
-	mov cl, ds:[80h]		
-	push cx 		
-	mov si, 81h
-	mov di, offset filePath
-	rep movsb 
+    xor ch, ch 				;чистим ch
+	mov cl, ds:[80h]		;ds стоит на начале PSP
+	push cx 			    ;запомнили длину строки
+	mov si, 81h 			;закинули в si адрес начала строки
+	mov di, offset filePath ;закинули в di адрес буфера, куда будет считываться строка
+	rep movsb 				;скопировали командную строку в filePath
 	
-	mov ds, ax
-	pop cx
-	mov cmd_size, cx
+	mov ds, ax				;теперь начинаем непосредственно работу с файлом
+	pop cx					;восстановили длину строки
+	mov cmd_size, cx		;запоминили длину строки
 	
-	mov si, cmd_size
-	mov filePath[si], 0
+	mov si, cmd_size		;отправляем в si длину считанной строки
+	mov filePath[si], 0		;подготовка имени файла к открытию (нужно добавить в конец 0)
     
-    mov ax, 3d00h          ;function for opening files 
-    lea dx, filePath[1]    ;path to our file
-    int 21h                ;call function
+    mov ax, 3d00h          ;функция для открытия файла 
+    lea dx, filePath[1]    ;путь к файлу (отправляем со следующего символа, т.к. первый символ в командной строке - пробел)
+    int 21h                ;вызов функции (если файл открыт, то cf = 0)
     
-    jnae fileNotOpened     ;if file is not opened, show message to user
+    jnae fileNotOpened     ;если файл не открыт, то выводим пользователю сообщение об этом (jnae смотрит регистр cf)
     
-    pusha
+    pusha 				   ;чтобы ничего не повредилось, запоминаем все регистры				   
     
-    cout success           ;if file is opened, show needed message
-    endl
+    cout success           ;если файл открыт, то выводим пользователю, что всё хорошо
+    endl				   ;переход на следующую строку
     
-    cout content           ;message, that says, that now will be showed content of the file
-    endl
-    endl
+    cout content           ;говорим, что выведем сейчас содержимое файла
+    endl				   ;переход на следующую строку
+    endl				   ;переход на следующую строку
     
-    popa
+    popa			       ;извлекаем решистры назад
     
-    mov fileID, ax         ;remember file identificator
+    mov fileID, ax         ;запомнили идентификатор файла
     
 readOneMoreTime:
-    call checkKeys
-    call delay
+    call checkKeys		   ;процедура, которая проверяет нажатия клавиш
+    call delay			   ;задержка перед выводом следующей пачки символов
 
-    mov ah, 3fh 
-    mov bx, fileID
-    mov cx, 3
-    mov dx, offset buf
+    mov ah, 3fh 		   ;функция чтения
+    mov bx, fileID		   ;идентификатор файла
+    mov cx, 3			   ;сколько читать
+    mov dx, offset buf     ;куда читать
     
-    int 21h
+    int 21h				   ;вызов функции
      
-    pusha 
-    cout buf
-    popa
+    pusha 				   ;чтобы ничего не повредилось, запоминаем все регистры
+    cout buf       		   ;выводим содержимое на экран
+    popa			       ;извлекаем решистры назад
     
-    call clean
+    call clean			   ;чистим буфер для приёма данных из файла
     
-    cmp ax, 3
-    jl exit 
+    cmp ax, 3              ;если ax < 3
+    jl exit1 			   ;то значит, что мы вычитали всё из файла
     
-    jmp readOneMoreTime    
+    jmp readOneMoreTime    ;опять идём считывать что-либо из файла
     
 fileNotOpened:
 
-    cout fail
-    endl
+    cout fail			   ;выводим сообщение ,что файл не был открыт
+    endl 				   ;переход на следующую строку
     
 exit:
 
-    mov ax, 4c00h
-    int 21h        
+    mov ax, 4c00h 		   ;функция завершения программы
+    int 21h                ;вызов функции
+
+exit1:
+	
+	mov ah, 3eh 		   ;функция закрытия файла
+	mov bx, fileID 		   ;помещаем в bx идентификатор файла, который нужно закрыть
+	int 21h 			   ;вызов функции
+
+	mov ax, 4c00h 		   ;функция завершения программы
+    int 21h                ;вызов функции    
     
 end start
