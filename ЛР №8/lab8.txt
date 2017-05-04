@@ -147,10 +147,30 @@ resetStack:
     mov ds:[si], 4               ; изменили цвет скобки на красный
     dec si                       ;
 
+    push si 					 ; запомнили координату текущей скобки
+
+    cmp al, ')'					 ; если это не закрывающая круглая скобка
+	jne otherBrackets			 ; то прыгаем на метку, на которой мы сделаем эту квадратную или фигурную скобку открывающей (')' - 1 = '(')
+
+	sub al, 1					 ; в противном случае делаем её открывающей круглой скобкой
+	jmp pushMe					 ; прыгаем на метку, где запомним её символ
+
+otherBrackets:
+
+	sub al, 2					 ; ']' - 2 = '['
+
+pushMe:
+
+    push ax				         ; запомнили символ этой скобки
+
+    mov bx, isEmpty              ;
+    inc bx                       ; увеличили счётчик скобок на 1
+    mov isEmpty, bx              ;
+
     jmp afterAddToStackAndOrCloseBracket
 
 colorCloseBracket:
-
+	
     inc si                       ;
     mov ds:[si], 4               ; изменили цвет скобки на красный
     dec si                       ;  
