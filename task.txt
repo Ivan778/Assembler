@@ -1,0 +1,315 @@
+Ввести матрицу, посчитать сумму элементов главной и побочной диагоналей, свопнуть местами элементы диагоналей и вывести матрицу на экран.txt
+
+.model small
+.stack 100h
+
+.data
+
+N dw 4                                              ; razmer matrizi
+
+mtx db 16 dup(?)                                    ; sama matrica
+errorMes db "Not a number!", 10, 13, '$'
+enterMes db "Enter matrix:", 10, 13, '$'
+dvsn dw 10
+
+kg dw 0
+kp dw 1
+
+ig dw 0
+ip dw 0
+
+eg db 0
+ep db 0
+
+ent db 10, 13, '$'
+space db "  ", '$'
+
+sum dw 0
+
+.code
+
+showNumber PROC
+    
+    pusha
+    
+    cmp ax, 0
+    jne continue
+    
+    xor dx, dx
+    
+    add dl, '0'
+    mov ah, 06h
+    int 21h
+    
+    jmp endShow
+
+continue:
+    
+    xor cx, cx        ; counter of numbers 
+    
+loopa:
+
+    cmp ax, 0
+    je endLoopa
+    
+    xor dx, dx        ; here will be digit
+    div dvsn          ; divide on 10h
+    push dx           ; remember residue
+    
+    inc cx            ; c++ 
+    
+    jmp loopa
+    
+endLoopa:
+
+    pop dx
+    
+    cmp dx, 0Ah
+    jge letter
+    
+    add dl, '0'
+    mov ah, 06h
+    int 21h
+    
+    dec cx
+    
+    cmp cx, 0
+    je endShow
+    
+    jmp endLoopa
+    
+letter:
+
+    add dx, 'A' - 10
+    mov ah, 06h
+    int 21h    
+    
+    dec cx
+    
+    cmp cx, 0
+    je endShow
+    
+    jmp endLoopa
+        
+endShow:
+    
+    popa
+    
+    ret
+    
+ENDP
+
+cout macro s                      ; show any string
+    
+    pusha
+    
+    lea dx, s
+    mov ah, 09h
+    int 21h
+    
+    popa
+    
+endm
+
+start:
+
+    mov ax, @data
+    mov ds, ax
+    
+    cout enterMes
+    
+    mov ax, N
+    mul N                       
+    mov cx, ax                  ; kolichestvo elementov
+    
+    xor si, si
+    
+loopEnterMtx:
+
+    cmp si, cx
+    je endEnterMtx              ; esli vveli vse simvoli, vihodim iz cikla
+    
+    mov ah, 01h
+    int 21h
+    
+    cmp al, '0'
+    jl notNumber
+    
+    cmp al, '9'
+    jg notNumber
+    
+    sub al, '0'
+    mov mtx[si], al
+    
+    inc si
+    
+    jmp loopEnterMtx
+    
+notNumber:
+    
+    cout errorMes
+    jmp loopEnterMtx    
+    
+endEnterMtx:
+
+    xor si, si                  ;
+    
+    xor bx, bx                  ;
+                                ;
+    mov cx, N
+    inc cx                      ;
+    
+mainDiagSum:
+    
+    cmp bx, N
+    je endMainDiagSum
+    
+    mov ax, cx                  ;
+    mul bx                      ;
+    
+    mov si, ax                  ;
+    
+    mov dx, sum
+    
+    xor ax, ax
+    mov al, mtx[si]
+    mov dx, sum
+    add dx, ax                  ;
+    mov sum, dx                 ;
+    
+    inc bx
+    
+    jmp mainDiagSum
+    
+endMainDiagSum:
+
+    xor si, si                  ;
+    
+    mov bx, 1
+                                ;
+    mov cx, N
+    dec cx                      ;
+    
+pobochDiagSum:
+
+    cmp bx, N
+    jg endPobochDiagSum
+    
+    mov ax, cx                  ;
+    mul bx
+    
+    mov si, ax                  ;
+    
+    mov dx, sum
+    
+    xor ax, ax
+    mov al, mtx[si]
+    mov dx, sum
+    add dx, ax                  ;
+    mov sum, dx                 ;
+    
+    inc bx
+    
+    jmp pobochDiagSum
+    
+endPobochDiagSum:
+
+    cout ent
+    mov ax, sum
+    call showNumber                                           
+    
+swop:
+    
+    mov bx, kg
+    cmp bx, N
+    
+    je endSwop
+                     
+    mov cx, N
+    inc cx                      ;
+    
+    mov ax, cx
+    mul kg
+    
+    mov si, ax
+    mov bl, mtx[si]
+    mov eg, bl
+    
+    mov ig, si
+    
+    mov ax, kg
+    inc ax
+    mov kg, ax
+    
+    
+    
+    mov cx, N
+    dec cx                      ;
+    
+    mov ax, cx
+    mul kp
+    
+    mov si, ax
+    mov bl, mtx[si]
+    mov ep, bl
+    
+    mov ip, si
+    
+    mov ax, kp
+    inc ax
+    mov kp, ax
+    
+    
+    
+    mov si, ig
+    mov bl, ep
+    mov mtx[si], bl
+    
+    mov si, ip
+    mov bl, eg
+    mov mtx[si], bl
+    
+    jmp swop   
+    
+endSwop:
+    
+    cout ent
+    
+    mov ax, N
+    mul N
+    
+    xor si, si
+    mov dx, ax
+    mov cx, N
+    
+loopaI:
+    
+    cmp si, dx
+    je allDone
+    
+    xor ax, ax
+    mov al, mtx[si]
+    call showNumber
+    
+    inc si
+    dec cx
+    
+    cmp cx, 0
+    je newLine
+    
+    cout space
+    
+    jmp loopaI
+    
+newLine:
+
+    cout ent
+    mov cx, N
+    jmp loopaI    
+
+allDone:    
+    
+    mov ax, 4c00h
+    int 21h
+
+end start

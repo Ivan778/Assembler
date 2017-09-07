@@ -1,0 +1,57 @@
+.model small
+.stack 100h
+.data
+
+str db 82 dup(?), '$'
+showWelcome db "Enter some symbols, please: ", '$'
+endl db 13, 10, '$'
+
+.code
+
+cout macro s                      ; show any string
+    
+    pusha
+    
+    lea dx, s
+    mov ah, 09h
+    int 21h
+    
+    popa
+    
+endm    
+
+cin macro s                       ; enter any string
+    
+    mov s[0], ah                  ; here's the full size of our string
+    
+    lea dx, s              
+    mov ah, 0Ah
+    int 21h
+    
+    xor bx, bx                    ; bx = 0, because we need to use bl
+    mov bl, s[1]                  ; bl = real size of string
+    add bl, 2                     ; bl += 2
+    mov s[bx], '$'                ; put in the last cell '$'
+
+endm    
+
+start:
+
+    mov ax, @data
+    mov ds, ax
+    
+    cout showWelcome
+    
+    xor ax, ax
+    mov ah, 80
+    cin str
+    
+    cout endl
+    cout str[2]
+    
+    
+    
+    mov ah, 4ch
+    int 21h
+
+end start

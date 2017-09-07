@@ -1,0 +1,170 @@
+.model small
+.stack 100h
+
+.data
+
+buffer db 100 dup(?)
+sum dw 0
+ent db 13, 10, '$'
+result db 7 dup('$') 
+
+.code
+
+convertSymbol PROC
+    
+    cmp bl, '9'                   ;if it's greater than '9'
+    ja itIsSymbol                 ;it's 'a'-'f' or 'A'-'F'
+    sub bl, '0'                   ;else it's a number, so number = symbol - '0'
+    
+    jmp processed                 ;finished processing
+    
+itIsSymbol:
+
+    and bl, 11011111b             ;if it's 'a', convert it to 'A'
+    sub bl, 'A' - 10              ;number = symbol - ('A' - 10)
+    
+processed:
+
+    ret        
+    
+ENDP    
+    
+cout macro s                      ;show any string
+    
+    lea dx, s
+    mov ah, 09h
+    int 21h
+    
+endm        
+
+endl macro                        ;go on the next line
+    
+    cout ent
+    
+endm       
+
+cin macro s                       ;enter number
+                                  ;put in first cell full size of string
+    mov s[0], 5
+    
+    lea dx, s              
+    mov ah, 0Ah
+    int 21h
+    
+    xor bx, bx                    ;bx = 0, because we need to use bl
+    mov bl, s[1]                  ;bl = real size of string
+    add bl, 2                     ;bl += 2
+    mov s[bx], '$'                ;put in the last cell '$'
+    
+endm    
+
+convertNumberToString PROC
+    
+    xor ax, ax                    ;AX = 0
+    mov ax, bx                    ;AX contains result of operation
+    xor bx, bx                    ;BX = 0
+    mov bx, 10h                   ;BX = 10h (we will divide on 10h)
+    xor cx, cx                    ;cx will contain amount of digits in stack
+
+getDigits:
+    
+    inc cx
+    
+    xor dx, dx
+    div bx                        ;the last digit is in DX
+    
+    shl ax, 4                     ;clear waste in AH
+    shr ax, 4                     ;clear waste in AH
+    
+    push dx                       ;save this digit
+    
+    cmp ax, 0h                    ;if ax != 0h
+    jne getDigits                 ;let's divide it one more time
+    
+    xor si, si                    ;si = 0
+
+createResultString:
+    
+    cmp cx, si                    ;if cx == si
+    je endOfCon                   ;we need to end our loop 
+    
+    xor bx, bx                    ;bx = 0
+    pop bx                        ;bx = digit of result
+    
+    cmp bx, 9h                    ;compare BX and 9h
+    jna itsADigit                 ;if BX is lower, than 9, it's a digit
+    
+    add bx, 'A'-10                ;else it's a letter => convert it to ASCII
+    mov result[si], bl            ;put it to string
+    inc si                        ;si++
+    
+    jmp createResultString
+     
+itsADigit:
+    
+    add bx, '0'                   ;convert digit to ASCII
+    mov result[si], bl            ;put to string
+    inc si                        ;si++
+    
+    jmp createResultString        ;go back to convert one more digit
+
+endOfCon:
+    
+    ret
+    
+ENDP    
+
+start:
+
+    mov ax, @data
+    mov ds, ax
+    
+    mov [buffer], 99
+    mov ah, 0Ah
+    int 21h
+    
+    mov si, 2
+    
+    xor cx, cx                   
+    mov cl, [buffer + 1]         ; get amount of entered symbols
+    add cx, 2
+    
+myLoop:
+    
+    cmp cx, si
+    je endLoop
+    
+    xor ax, ax
+    mov al, [buffer + si]
+    
+    cmp al, '0'
+    jl notInt
+    
+    cmp al, '9'
+    jg notInt
+    
+    sub al, '0'
+    mov dx, sum
+    add dx, ax
+    mov sum, dx
+    
+    inc si
+    jmp myLoop
+    
+notInt:
+
+    inc si
+    jmp myLoop
+            
+endLoop:
+
+    mov bx, sum
+    call convertNumberToString
+    
+    endl
+    cout result
+    
+    mov ax, 4C00h
+    int 21h     
+
+end start
