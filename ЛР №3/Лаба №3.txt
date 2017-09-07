@@ -45,7 +45,7 @@ ENDP
 convertSymbol PROC
     
     cmp bl, '9'                   ;if it's greater than '9'
-    ja itIsSymbol                ;it's 'a'-'f' or 'A'-'F'
+    ja itIsSymbol                 ;it's 'a'-'f' or 'A'-'F'
     sub bl, '0'                   ;else it's a number, so number = symbol - '0'
     
     jmp processed                 ;finished processing
